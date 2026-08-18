@@ -14,6 +14,13 @@
     return Number.isFinite(amount) ? `₹${amount.toFixed(2)}` : "₹—";
   }
 
+  function detectMobileOS() {
+    const userAgent = navigator.userAgent.toLowerCase();
+    if (/iphone|ipad|ipod/.test(userAgent)) return "ios";
+    if (/android/.test(userAgent)) return "android";
+    return "other";
+  }
+
   async function loadDisplayAmount(ui) {
     try {
       const checkout = readCheckoutData();
@@ -79,6 +86,25 @@
     document.body.appendChild(modal);
   }
 
+  function showIosFallback(ui, result) {
+    const previous = document.querySelector(".direct-upi-ios-modal");
+    if (previous) previous.remove();
+    const modal = document.createElement("div");
+    modal.className = "direct-upi-ios-modal";
+    modal.innerHTML = `<section class="direct-upi-ios-card" role="dialog" aria-modal="true" aria-label="iPhone payment options"><button type="button" class="direct-upi-ios-close" aria-label="Close">×</button><h2>Open PhonePe or Scan QR</h2><p>Tap the button below to open PhonePe on your iPhone. If it does not open, scan the QR code from any UPI app.</p><button type="button" class="direct-upi-ios-phonepe">Open PhonePe</button><button type="button" class="direct-upi-ios-qr">Show QR Code</button></section>`;
+    const close = () => { modal.remove(); ui.paymentLaunched = false; };
+    modal.addEventListener("click", (event) => { if (event.target === modal) close(); });
+    modal.querySelector(".direct-upi-ios-close").addEventListener("click", close);
+    modal.querySelector(".direct-upi-ios-phonepe").addEventListener("click", () => {
+      window.location.assign(result.phonePeUri);
+    });
+    modal.querySelector(".direct-upi-ios-qr").addEventListener("click", () => {
+      modal.remove();
+      showQr(ui, result);
+    });
+    document.body.appendChild(modal);
+  }
+
   async function startPayment(ui, method) {
     if (ui.paymentLaunched) return;
     let checkout;
@@ -125,13 +151,22 @@
         showQr(ui, result);
         return;
       }
-      const target = /Android/i.test(navigator.userAgent) ? result.phonePeNativeUri : result.phonePeUri;
+      const mobileOS = detectMobileOS();
+      const target = mobileOS === "android"
+        ? result.phonePeNativeUri
+        : mobileOS === "ios"
+          ? result.phonePeUri
+          : result.upiUri;
       if (!target) throw new Error("PhonePe payment link is unavailable.");
       window.location.assign(target);
       window.setTimeout(() => {
         if (document.visibilityState === "visible") {
           ui.paymentLaunched = false;
-          showStatus(ui, "pending", "Payment request opened", "Complete the payment in PhonePe. This direct UPI payment is not marked successful by a browser return.");
+          if (mobileOS === "ios") {
+            showIosFallback(ui, result);
+          } else {
+            showStatus(ui, "pending", "Payment request opened", "Complete the payment in PhonePe. This direct UPI payment is not marked successful by a browser return.");
+          }
         }
       }, 2200);
     } catch (error) {
@@ -185,6 +220,7 @@
       .direct-upi-qr{display:flex!important;align-items:center;width:100%;min-height:52px;padding:0 17px;border:0;border-bottom:8px solid #f5f5f5;background:#fff;color:var(--pay-purple);font-size:13px;font-weight:800;cursor:pointer;text-align:left}.direct-upi-qr svg{width:19px;height:19px;margin-right:10px;fill:currentColor}.direct-upi-qr.is-selected{background:#fff5fd}.direct-upi-qr span:last-child{margin-left:auto;font-size:16px}
       .direct-upi-status{display:flex!important;align-items:flex-start;gap:10px;margin:8px 12px 0;padding:11px 12px;border-radius:9px}.direct-upi-status[hidden]{display:none!important}.direct-upi-status.is-error{color:#9d1c26;background:#fff2f3;border:1px solid #ffd2d5}.direct-upi-status.is-pending{color:#76510a;background:#fff9e9;border:1px solid #f7e0a2}.direct-upi-status-icon{display:grid!important;place-items:center;flex:0 0 auto;width:23px;height:23px;border-radius:50%;color:#fff;font-size:12px;font-weight:800}.is-error .direct-upi-status-icon{background:#c73342}.is-pending .direct-upi-status-icon{background:#9a6b0d}.direct-upi-status-text{flex:1}.direct-upi-status-title{display:block;font-size:11px}.direct-upi-status-copy{margin:3px 0 7px;font-size:9.5px;line-height:1.45}.direct-upi-retry{padding:6px 10px;border:1px solid currentColor;border-radius:7px;background:#fff;color:inherit;font-size:10px;font-weight:800;cursor:pointer}
       .direct-upi-qr-modal{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:18px;background:rgba(27,15,25,.58)}.direct-upi-qr-card{position:relative;width:min(100%,350px);padding:28px 22px 23px;border-radius:20px;background:#fff;text-align:center;box-shadow:0 20px 65px rgba(0,0,0,.28)}.direct-upi-qr-card h2{margin:0;color:#202020;font-size:20px}.direct-upi-qr-card p{margin:8px 0 16px;color:#626062;font-size:12px;line-height:1.45}.direct-upi-qr-card img{display:block;width:220px;height:220px;margin:0 auto 15px;border:7px solid #f5f5f5;border-radius:10px}.direct-upi-qr-card strong,.direct-upi-qr-card small{display:block}.direct-upi-qr-card strong{font-size:20px}.direct-upi-qr-card small{margin-top:6px;color:#777;font-size:10px}.direct-upi-qr-close{position:absolute;right:12px;top:10px;width:32px;height:32px;border:0;border-radius:50%;background:#f2eef1;color:#4d454b;font-size:25px;line-height:1;cursor:pointer}
+      .direct-upi-ios-modal{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:18px;background:rgba(27,15,25,.58)}.direct-upi-ios-card{position:relative;width:min(100%,350px);padding:28px 22px 23px;border-radius:20px;background:#fff;text-align:center;box-shadow:0 20px 65px rgba(0,0,0,.28)}.direct-upi-ios-card h2{margin:0;color:#202020;font-size:20px}.direct-upi-ios-card p{margin:8px 0 20px;color:#626062;font-size:12px;line-height:1.45}.direct-upi-ios-phonepe,.direct-upi-ios-qr{display:block;width:100%;min-height:48px;border:0;border-radius:10px;font-weight:800;cursor:pointer}.direct-upi-ios-phonepe{background:#5f259f;color:#fff}.direct-upi-ios-qr{margin-top:10px;background:#f2edf6;color:#5f259f}.direct-upi-ios-close{position:absolute;right:12px;top:10px;width:32px;height:32px;border:0;border-radius:50%;background:#f2eef1;color:#4d454b;font-size:25px;line-height:1;cursor:pointer}
       .direct-upi-price-card{margin-top:8px;padding:14px 17px 18px;background:#fff}.direct-upi-price-row{display:flex!important;align-items:center;justify-content:space-between;min-height:40px;border-bottom:1px solid #eee;font-size:14px}.direct-upi-price-row:last-child{border-bottom:0}.direct-upi-price-row span:first-child{color:#555056;font-weight:600}.direct-upi-price-row strong{color:#191719;font-size:15px}.direct-upi-price-row .direct-upi-free{color:#0b9c4b}.direct-upi-price-row.total span:first-child,.direct-upi-price-row.total strong{color:#191719;font-size:15px;font-weight:800}
       .direct-upi-bottom{position:fixed;left:50%;bottom:0;z-index:1200;display:flex!important;align-items:center;justify-content:space-between;width:min(100%,560px);min-height:82px;padding:11px 17px calc(11px + env(safe-area-inset-bottom));border-top:1px solid #eee;background:#fff;box-shadow:0 -4px 16px rgba(0,0,0,.08);transform:translateX(-50%);box-sizing:border-box}.direct-upi-footer-price strong,.direct-upi-footer-price small{display:block}.direct-upi-footer-price strong{color:#111;font-size:20px;line-height:1.15}.direct-upi-footer-price small{margin-top:3px;color:var(--pay-purple);font-size:9px;font-weight:800;text-transform:uppercase}.direct-upi-pay{display:flex!important;align-items:center;justify-content:center;min-width:122px;min-height:52px;padding:0 20px;border:0;border-radius:10px;background:var(--pay-purple);color:#fff;font-size:16px;font-weight:800;cursor:pointer}.direct-upi-pay:active{background:var(--pay-purple-dark)}.direct-upi-pay:disabled{opacity:.7;cursor:wait}.direct-upi-pay.is-loading::before{content:"";width:15px;height:15px;margin-right:8px;border:2px solid #ffffff66;border-top-color:#fff;border-radius:50%;animation:directUpiSpin .8s linear infinite}
       @keyframes directUpiSpin{to{transform:rotate(360deg)}}
