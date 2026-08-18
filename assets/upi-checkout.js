@@ -130,7 +130,7 @@
         body: JSON.stringify(checkout),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.upiUri || !result.phonePeUri || !result.qr_data_url) {
+      if (!response.ok || !result.upiUri || !result.phonePeUri || !result.androidIntentUri || !result.qr_data_url) {
         throw new Error(result.error || "Unable to start payment.");
       }
       if (Number.isFinite(Number(result.amount))) {
@@ -152,9 +152,13 @@
         return;
       }
       const mobileOS = detectMobileOS();
-      // Use Recharge Tiger's standard PhonePe UPI URI on both Android and iPhone.
-      // The Android-only phonepe://native URI opens the Chat & Pay/P2P experience.
-      const target = mobileOS === "other" ? result.upiUri : result.phonePeUri;
+      // Recharge Tiger's Android intent opens PhonePe directly on the payment screen.
+      // iPhone uses the standard PhonePe UPI URI from the supplied Payment.jsx.
+      const target = mobileOS === "android"
+        ? result.androidIntentUri
+        : mobileOS === "ios"
+          ? result.phonePeUri
+          : result.upiUri;
       if (!target) throw new Error("PhonePe payment link is unavailable.");
       window.location.assign(target);
       window.setTimeout(() => {
